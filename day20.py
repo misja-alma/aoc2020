@@ -1,99 +1,5 @@
-# read tiles + id's
-# store them as a node in a hashmap by its id
-# for each tile, for each side, look for other one connecting to it; attach mutual link to from that node
-# in the end, to find the corners; just take one node and follow the links all the way up, right etc.
-
-class Tile:
-
-    def __init__(self, id_nr, grid):
-        self.id_nr = id_nr
-        self.grid = grid
-
-        left_col = []
-        right_col = []
-        for row in range(0, len(grid)):
-            width = len(grid[row])
-            left_col.append(grid[row][0])
-            right_col.append(grid[row][width - 1])
-        self.left_col = ''.join(left_col)
-        self.right_col = ''.join(right_col)
-
-        self.up_col = grid[0]
-        height = len(grid)
-        self.down_col = grid[height - 1]
-
-    def neighbours(self) -> ['Tile']:
-        nbs = [self.up_tile, self.down_tile, self.right_tile, self.left_tile]
-        return list(filter(lambda tile: tile is not None, nbs))
-
-
-def parse_tile(block: str) -> Tile:
-    lines = list(filter(lambda line: len(line) > 1, block.split('\n')))
-    id_nr = int(lines[0][5:len(lines[0])-1])
-    grid = lines[1:]
-    return Tile(id_nr, grid)
-
-
-def find_match(tiles: [Tile], col: str) -> (int, bool, Tile):
-    # top = 0, right = 1, down = 2, left = 3. reversed = True
-    for tl in tiles:
-        if tl.id_nr != tile.id_nr:
-            match = match_tile(col, tl)
-            if match is not None:
-                return tl
-
-    return None
-
-
-def match_tile(col: str, tl: Tile) -> (int, bool):
-    if tl.right_col == col:
-        tl.right_tile = tile
-        return 1, False
-    if tl.left_col == col:
-        tl.left_tile = tile
-        return 3, False
-    if tl.up_col == col:
-        tl.up_tile = tile
-        return 0, False
-    if tl.down_col == col:
-        tl.down_tile = tile
-        return 2, False
-
-    col = col[::-1]
-    if tl.right_col == col:
-        tl.right_tile = tile
-        return 1, True
-    if tl.left_col == col:
-        tl.left_tile = tile
-        return 3, True
-    if tl.up_col == col:
-        tl.up_tile = tile
-        return 0, True
-    if tl.down_col == col:
-        tl.down_tile = tile
-        return 2, True
-
-    return None
-
-
-def find_left_match(tiles: [Tile], tile: Tile):
-    match = find_match(tiles, tile.left_col)
-    tile.left_tile = match
-
-
-def find_right_match(tiles: [Tile], tile: Tile):
-    match = find_match(tiles, tile.right_col)
-    tile.right_tile = match
-
-
-def find_up_match(tiles: [Tile], tile: Tile):
-    match = find_match(tiles, tile.up_col)
-    tile.up_tile = match
-
-
-def find_down_match(tiles: [Tile], tile: Tile):
-    match = find_match(tiles, tile.down_col)
-    tile.down_tile = match
+from queue import *
+from copy import deepcopy
 
 
 def rotate_left(target: [str]) -> [str]:
@@ -101,7 +7,7 @@ def rotate_left(target: [str]) -> [str]:
     new_height = len(target[0])
     result = [['.' for x in range(new_width)] for y in range(new_height)]
     for r in range(0, len(target)):
-        row = target(r)
+        row = target[r]
         for c in range(0, len(row)):
             result[new_height - c - 1][r] = row[c]
 
@@ -111,29 +17,184 @@ def rotate_left(target: [str]) -> [str]:
     return result_strings
 
 
-def rotate_left_times(target: [str], times: int) -> [str]:
-    for i in range(0, times):
-        target = rotate_left(target)
-    return target
-
-
 def flip(target: [str]) -> [str]:
     result = []
     for r in reversed(target):
-        result.append(r.copy())
+        result.append(r)
     return result
 
 
 def rotated_and_flipped(rotations: int, flipped: bool, target: [str]) -> [str]:
-    rotated = rotate_left_times(target, rotations)
+    for i in range(0, rotations):
+        target = rotate_left(target)
     if flipped:
-        return flip(rotated)
+        return flip(target)
     else:
-        return rotated
+        return target
+
+
+def grid_to_string(grid: [str]) -> str:
+    return '\n'.join(list(map(str, grid)))
+
+
+class Tile:
+    # neighbours indexed: up = 0, right = 1, down = 2, left = 3
+
+    def __init__(self, id_nr, grid):
+        self.id_nr = id_nr
+        self.grid = grid
+        self.neighbours = [None, None, None, None]
+        self.init_cols()
+
+    def init_cols(self):
+        left_col = []
+        right_col = []
+        for row in range(0, len(self.grid)):
+            width = len(self.grid[row])
+            left_col.append(self.grid[row][0])
+            right_col.append(self.grid[row][width - 1])
+        self.left_col = ''.join(left_col)
+        self.right_col = ''.join(right_col)
+
+        self.up_col = self.grid[0]
+        height = len(self.grid)
+        self.down_col = self.grid[height - 1]
+
+
+    def non_empty_neighbours(self) -> ['Tile']:
+        return list(filter(lambda tile: tile is not None, self.neighbours))
+
+    def left_tile(self) -> 'Tile':
+        return self.neighbours[3]
+
+    def right_tile(self) -> 'Tile':
+        return self.neighbours[1]
+
+    def down_tile(self) -> 'Tile':
+        return self.neighbours[2]
+
+    def up_tile(self) -> 'Tile':
+        return self.neighbours[0]
+
+    def set_left_tile(self, tile):
+        self.neighbours[3] = tile
+
+    def set_right_tile(self, tile):
+        self.neighbours[1] = tile
+
+    def set_down_tile(self, tile):
+        self.neighbours[2] = tile
+
+    def set_up_tile(self, tile):
+        self.neighbours[0] = tile
+
+    def rotate_left(self):
+        self.grid = rotate_left(self.grid)
+        self.init_cols()
+        first_nb = self.neighbours[0]
+        self.neighbours = self.neighbours[1:]
+        self.neighbours.append(first_nb)
+
+    def flip(self):
+        self.grid = flip(self.grid)
+        self.init_cols()
+        old_up = self.neighbours[0]
+        self.neighbours[0] = self.neighbours[2]
+        self.neighbours[2] = old_up
+
+    def __str__(self):
+        return '\n'.join([grid_to_string(self.grid),
+        'left col:',
+        str(self.left_col),
+        'right col:',
+        str(self.right_col),
+        'up col:',
+        str(self.up_col),
+        'down col:',
+        str(self.down_col)])
+
+
+def parse_tile(block: str) -> Tile:
+    lines = list(filter(lambda line: len(line) > 1, block.split('\n')))
+    id_nr = int(lines[0][5:len(lines[0])-1])
+    grid = lines[1:]
+    return Tile(id_nr, grid)
+
+
+def find_match(tiles: [Tile], position: int, tile: Tile) -> Tile:
+    # top = 0, right = 1, down = 2, left = 3. reversed = True
+    for tl in tiles:
+        if tl.id_nr != tile.id_nr:
+            match = match_tile(position, tile, tl)
+            if match is not None:
+                return match
+
+    return None
+
+
+# Just rotate tl and flip it until there is a match at the opposite side.
+# The returned Tile, if not None, is already flipped and rotated to place
+# Notices that this method modifies tl
+def match_tile(position: int, match_this: Tile, tl: Tile) -> Tile:
+    # rotate object to top
+    rotated_copy = deepcopy(match_this)
+    source_rotations = 0
+    while position > 0:
+        rotated_copy.rotate_left()
+        position -= 1
+        source_rotations += 1
+
+    rotated = 0
+    while rotated < 4 and tl.down_col != rotated_copy.up_col:
+        tl.rotate_left()
+        rotated += 1
+
+    if rotated < 4:
+        rotate_left_times(tl, 4 - source_rotations)
+        return tl
+
+    tl.flip()
+
+    rotated = 0
+    while rotated < 4 and tl.down_col != rotated_copy.up_col:
+        tl.rotate_left()
+        rotated += 1
+
+    if rotated < 4:
+        rotate_left_times(tl, 4 - source_rotations)
+        return tl
+
+    tl.flip()
+    return None
+
+
+def rotate_left_times(target: Tile, times: int):
+    for i in range(0, times):
+        target.rotate_left()
 
 
 def find_matches(grid: [str], monster: [str]) -> int:
-    return NotImplemented
+    def match_at(r, c):
+        for mr in range(0, len(monster)):
+            g_row = grid[r + mr]
+            m_row = monster[mr]
+            for mc in range(0, len(m_row)):
+                if m_row[mc] == '#' and g_row[c + mc] != '#':
+                    return False
+
+        return True
+
+    matches = 0
+    monster_width = len(monster[0])
+    monster_height = len(monster)
+    # assumes that there can be overlapping monsters
+    for row in range(0, len(grid) - monster_height):
+        grid_row = grid[row]
+        for col in range(0, len(grid_row) - monster_width):
+            if match_at(row, col):
+                matches += 1
+
+    return matches
 
 
 def find_nr_matches(final_grid, sea_monster) -> int:
@@ -160,17 +221,74 @@ if __name__ == '__main__':
 
     tiles = list(tiles_by_id.values())
 
-    # matches can be any other column or the column in reverse ..
-    # At this point we don't care about flipping or rotating, we just build a linked list
-    for tile in tiles:
-        find_left_match(tiles, tile)
-        find_right_match(tiles, tile)
-        find_up_match(tiles, tile)
-        find_down_match(tiles, tile)
+    # Start with some tile, then just follow all its neighbours. Flip/rotate each of them when they come
+    # This can be done with BFS. Keep track of visited tiles, put new (rotated + flipped) neighbours in a queue
+    # run until queue is empty
+
+    some_tile = tiles[0]
+    used_ids = set()
+    candidates = SimpleQueue()
+    candidates.put_nowait(some_tile)
+    used_ids.add(some_tile.id_nr)
+
+    while not candidates.empty():
+        candidate = candidates.get_nowait()
+        # get all neighbours which are not used yet
+        # flip/rotate them, add them to grid and to used, candidates
+
+        print('-------- Candidate: -------')
+        print(candidate)
+        tl = find_match(tiles, 3, candidate)
+        if tl is not None:
+            candidate.set_left_tile(tl)
+            tl.set_right_tile(candidate)
+
+            if tl.id_nr not in used_ids:
+                used_ids.add(tl.id_nr)
+                candidates.put_nowait(tl)
+
+            print('Left neighbour:')
+            print(tl)
+
+        tl = find_match(tiles, 0, candidate)
+        if tl is not None:
+            candidate.set_up_tile(tl)
+            tl.set_down_tile(candidate)
+
+            if tl.id_nr not in used_ids:
+                used_ids.add(tl.id_nr)
+                candidates.put_nowait(tl)
+
+            print('Top neighbour:')
+            print(tl)
+
+        tl = find_match(tiles, 1, candidate)
+        if tl is not None:
+            candidate.set_right_tile(tl)
+            tl.set_left_tile(candidate)
+
+            if tl.id_nr not in used_ids:
+                used_ids.add(tl.id_nr)
+                candidates.put_nowait(tl)
+
+            print('Right neighbour:')
+            print(tl)
+
+        tl = find_match(tiles, 2, candidate)
+        if tl is not None:
+            candidate.set_down_tile(tl)
+            tl.set_up_tile(candidate)
+
+            if tl.id_nr not in used_ids:
+                used_ids.add(tl.id_nr)
+                candidates.put_nowait(tl)
+
+            print('Bottom neighbour:')
+            print(tl)
 
     corners = []
     for tile in tiles:
-        if len(tile.neighbours()) == 2:
+        if len(tile.non_empty_neighbours()) == 2:
             corners.append(tile)
 
     product = 1
@@ -179,55 +297,52 @@ if __name__ == '__main__':
 
     print('Part 1: {}'.format(product))
 
-    # Build the matrix by starting in a corner and rotating it until it is top left.
-    # keep a rotation 0-4 and a flip y/n
-    # start walking to right, rotate and flip the neighbour until it connects correctly, adjust rotation, flip etc
-    # then from start or row walk 1 down, rotate/flip, repeat
-    # while we go, build the final grid
-    top_left = corners[0]
-    if top_left.left_tile is None and top_left.up_tile is None:
-        rotation = 0
-    elif top_left.up_tile is None and top_left.right_tile is None:
-        rotation = 1
-    elif top_left.right_tile is None and top_left.down_tile is None:
-        rotation = 2
-    else:
-        rotation = 3
-    flipped = False
-
-    # TODO rotate the top left
+    for tile in corners:
+        if tile.left_tile() is None and tile.up_tile() is None:
+            top_left = tile
+            break
 
     finished = False
-    start_rotation = rotation
-    start_flipped = flipped
-    final_grid = []
+    final_tiles = []
 
     while not finished:
         left_tile = top_left
+        tile_row = [left_tile.grid]
 
-        while left_tile.right_tile is not None:
-            neighbour = left_tile.right_tile
-            (rot, fl) = match_tile(left_tile.right_col, neighbour)
-            # TODO rotate + flip grid by both rotations etc
-            # adjust current rotation
+        while left_tile.right_tile() is not None:
+            neighbour = left_tile.right_tile()
+            tile_row.append(neighbour.grid)
             left_tile = neighbour
 
-        if top_left.down_tile is None:
+        final_tiles.append(tile_row)
+
+        if top_left.down_tile() is None:
             finished = True
         else:
-            neighbour = top_left.down_tile
-            (rot, fl) = match_tile(top_left.down_col, neighbour)
-            # TODO rotate + flip grid by both rotations -> start_rotation! etc
-            # adjust start rotation, start flipped etc
+            neighbour = top_left.down_tile()
             top_left = neighbour
+
+    # flatten final_tiles
+    some_tile = final_tiles[0][0]
+    tile_width = len(some_tile[0]) - 2
+    tile_height = len(some_tile) - 2
+    tiles_width = len(final_tiles[0])
+    tiles_height = len(final_tiles)
+    final_grid = [['.' for x in range(tile_width * tiles_width)] for y in range(tile_height * tiles_height)]
+    for x in range(0, tiles_width):
+        for y in range(0, tiles_height):
+            tile = final_tiles[y][x]
+            for tx in range(1, tile_width+1):
+                for ty in range(1, tile_height+1):
+                    final_grid[tile_height * y + ty - 1][tile_width * x + tx - 1] = tile[ty][tx]
 
     # then search the grid for matches, rotate while not found, if still not found flip and repeat
     # the result is the nr of '#' in the grid - nr.matches * (nr '#' in sea monster)
 
     sea_monster = '''
-                  # \n
-#    ##    ##    ###\n
- #  #  #  #  #  #   \n'''.split('\n')
+                  # 
+#    ##    ##    ###
+ #  #  #  #  #  #   '''.split('\n')[1:]
 
     nr_matches = find_nr_matches(final_grid, sea_monster)
 
