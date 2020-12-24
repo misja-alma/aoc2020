@@ -29,7 +29,7 @@ if __name__ == '__main__':
     black_coords = set()
     for direction in directions:
         # parse direction, get final coord
-        # flip (check if known first, if not know flip goes to black)
+        # flip (check if known first, if not known flip goes to black)
         index = 0
         first_char = None
         x = 0
@@ -77,11 +77,9 @@ if __name__ == '__main__':
     nr_generations = 0
     current_generation = black_coords.copy()
     while nr_generations < 100:
-        checked = set()
         new_generation = set()
         for pt in current_generation:
-            cells_to_check = filter(lambda c: c not in checked, neighbours(pt))
-            for cell in cells_to_check:
+            for cell in neighbours(pt):
                 nr_neighbours = count_black_neighbours(cell, current_generation)
                 if cell in current_generation:  # cell is black
                     if 0 < nr_neighbours <= 2:
@@ -89,7 +87,6 @@ if __name__ == '__main__':
                 else:
                     if nr_neighbours == 2:
                         new_generation.add(cell)
-                checked.add(cell)
         nr_generations += 1
         current_generation = new_generation
 
