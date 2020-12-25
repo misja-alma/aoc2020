@@ -72,8 +72,7 @@ if __name__ == '__main__':
 
     # algo:
     # take all black tiles in current generation
-    # for them and their neighbours:
-    # check if already checked. If not: add transformed to new generation
+    # for them and their neighbours: check and add to next generation if black
     nr_generations = 0
     current_generation = black_coords.copy()
     while nr_generations < 100:
